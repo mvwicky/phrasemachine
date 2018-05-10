@@ -8,6 +8,7 @@ import argparse
 import base64
 import hashlib
 import getpass
+import gzip
 import random
 import re
 
@@ -113,10 +114,10 @@ def get_words(file_name, reg):
     file_name: the name (path) of the file from which we'll load words
     reg: a compiled regular expression object to match against
     """
+    with open(Config.WORDLIST_FILE_NAME, 'rb') as f:
+        cts = gzip.decompress(f.read()).decode()
     words = []
-    with open(file_name, mode='rt', encoding='utf-8') as f:
-        reg_iter = reg.finditer(f.read())
-    for elem in reg_iter:
+    for elem in reg.finditer(cts):
         words.append(elem[0].title())
     return words
 

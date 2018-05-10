@@ -21,7 +21,7 @@ class Config(object):
         ]
     )
     # Raw list of words
-    WORDLIST_FILE_NAME = 'wordlist_raw.txt'
+    WORDLIST_FILE_NAME = 'wordlist.txt.gz'
     # Default shortest word length
     WLEN_MIN = 6
     # Default longest word length
