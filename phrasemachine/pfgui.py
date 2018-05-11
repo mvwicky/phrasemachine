@@ -179,8 +179,12 @@ class GeneratorWidget(QtWidgets.QWidget):
             )
 
 
-if __name__ == "__main__":
+def main():
     app = QtWidgets.QApplication(sys.argv)
     widget = GeneratorWidget()
     widget.show()
     sys.exit(app.exec_())
+
+
+if __name__ == "__main__":
+    main()

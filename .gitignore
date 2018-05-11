@@ -1,3 +1,5 @@
+*.sublime-workspace
+
 salt.txt
 wordlist_raw.txt
 

@@ -158,12 +158,13 @@ def generate_passphrase(master, domain, hmac, it_min, num, words, length):
     return ''.join(random.choices(words, k=length))
 
 
-def main(args):
+def main():
     """Main function
 
     args: an argparse namespace
     """
     # Load available words
+    args = check_args()
     words = get_words(
         Config.WORDLIST_FILE_NAME, word_reg(args.length_min, args.length_max)
     )
@@ -186,4 +187,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-    main(check_args())
+    main()
