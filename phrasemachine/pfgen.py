@@ -12,6 +12,8 @@ import gzip
 import random
 import re
 
+import click
+
 # If we can import pyperclip, do it
 try:
     import pyperclip
@@ -186,5 +188,10 @@ def main():
         pyperclip.copy(passphrase)
 
 
+def cli():
+    """Click main function"""
+
+
 if __name__ == '__main__':
     main()
+    # cli()
