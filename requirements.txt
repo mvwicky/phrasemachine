@@ -4,3 +4,5 @@ pyperclip==1.6.0
 Qt.py==1.1.0
 # -i http://download.qt.io/snapshots/ci/pyside/5.9/latest/
 # pyside2>=5.9  # --trusted-host download.qt.io
+PyQt5==5.10.1
+ujson==1.35
