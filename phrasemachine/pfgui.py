@@ -1,11 +1,14 @@
+from collections import OrderedDict
 import hashlib
+from typing import Callable, Union, Optional
 import sys
 
+import attr
 import pyperclip
 from Qt import QtWidgets
 from Qt.QtCore import Qt
 
-from config import Config
+from config import Config, SavedSettings
 from pfgen import get_words, word_reg, generate_passphrase
 
 
@@ -14,6 +17,7 @@ INT_MAX = int(((1 << 32) - 1) / 2)
 
 
 class PassphraseDialog(QtWidgets.QDialog):
+
     def __init__(self, parent, passphrase):
         QtWidgets.QDialog.__init__(self)
         self.parent = parent
@@ -41,80 +45,141 @@ class PassphraseDialog(QtWidgets.QDialog):
         pyperclip.copy(self.passphrase)
 
 
-class ParamInput(object):
-    __slots__ = ('label', 'inp_widget', )
+def label_converter(inp):
+    if not isinstance(inp, QtWidgets.QLabel):
+        inp = QtWidgets.QLabel(str(inp))
+    return inp
 
-    def __init__(self, label, inp_widget):
-        if not isinstance(label, QtWidgets.QLabel):
-            label = QtWidgets.QLabel(str(label))
-        self.label = label
-        self.inp_widget = inp_widget
+
+Value_Cmd = Callable[[QtWidgets.QWidget], Union[str, int]]
+Guessable = dict(
+    [
+        (QtWidgets.QComboBox, 'currentText'),
+        (QtWidgets.QSpinBox, 'value'),
+        (QtWidgets.QLineEdit, 'text'),
+    ]
+)
+
+
+@attr.s(slots=True, auto_attribs=True)
+class ParamInput(object):
+    label: QtWidgets.QLabel = attr.ib(converter=label_converter)
+    widget: QtWidgets.QWidget = attr.ib()
+    val_cmd: Optional[Value_Cmd] = attr.ib(default=None)
+
+    @classmethod
+    def guess_command(cls, label, widget):
+        ret = cls(label, widget)
+        for elem in Guessable:
+            if isinstance(widget, elem):
+                ret.val_cmd = getattr(ret.widget, Guessable[elem])
+                return ret
+
+        raise TypeError(
+            '"widget" must be in {0!r} not {1}'.format(
+                Guessable.keys(), type(widget)
+            )
+        )
 
 
 class GeneratorWidget(QtWidgets.QWidget):
+
     def __init__(self):
         QtWidgets.QWidget.__init__(self)
-        self.vals = {}
+        self.inps = OrderedDict()
         self.layout, self.rows = QtWidgets.QGridLayout(), 0
         self.dialog_open = False
         self.setWindowTitle('Passphrase Generator')
         self.init_ui()
 
     def init_ui(self):
-        # self.vals['domain'] = ParamInput(
-        #     'Domain', QtWidgets.QComboBox(self)
-        # )
-        # self.vals['domain'].inp_widget.addItems(Config.DOMAINS)
-        domain_label = QtWidgets.QLabel('Domain')
-        self.domain_val = QtWidgets.QComboBox(self)
-        self.domain_val.addItems(Config.DOMAINS)
+        self.inps['domain'] = ParamInput.guess_command(
+            'Domain', QtWidgets.QComboBox(self)
+        )
+        self.inps['domain'].widget.addItems(Config.DOMAINS)
 
-        # self.vals['num_words'] = ParamInput(
-        #     'Number of Words in Passphrase',
-        #     self.default_spinbox(Config.LENGTH)
-        # )
-        num_words_label = QtWidgets.QLabel('Number of Words in Passphrase')
-        self.num_words_val = self.default_spinbox(Config.LENGTH)
+        self.inps['num_words'] = ParamInput.guess_command(
+            'Number of Words in Passphrase',
+            self.default_spinbox(Config.LENGTH),
+        )
 
-        # self.vals['wlen_min'] = ParamInput(
-        #     'Minimum Number of Letters per Word',
-        #     self.default_spinbox(Config.WLEN_MIN)
-        # )
-        wlen_min_label = QtWidgets.QLabel('Minimum Number of Letters per Word')
-        self.wlen_min_val = self.default_spinbox(Config.WLEN_MIN)
+        self.inps['wlen_min'] = ParamInput.guess_command(
+            'Minimum Number of Letters per Word',
+            self.default_spinbox(Config.WLEN_MIN),
+        )
 
-        wlen_max_label = QtWidgets.QLabel('Maximum Number of Letters per Word')
-        self.wlen_max_val = self.default_spinbox(Config.WLEN_MAX)
+        self.inps['wlen_max'] = ParamInput.guess_command(
+            'Maximum Number of Letters per Word',
+            self.default_spinbox(Config.WLEN_MAX),
+        )
 
-        num_label = QtWidgets.QLabel('Passphrase iteration')
-        self.num_val = self.default_spinbox(1)
+        self.inps['num'] = ParamInput.guess_command(
+            'Passphrase iteration', self.default_spinbox(1)
+        )
 
-        it_min_label = QtWidgets.QLabel('Minimum iterations for PBKDF2')
-        self.it_min_val = self.default_spinbox(Config.IT_MIN)
-        self.it_min_val.setGroupSeparatorShown(True)
+        self.inps['it_min'] = ParamInput.guess_command(
+            'Minimum iterations for PBKDF2',
+            self.default_spinbox(Config.IT_MIN),
+        )
 
-        hmac_label = QtWidgets.QLabel('HMAC to use with PBKDF2')
-        self.hmac_val = QtWidgets.QComboBox(self)
-        self.hmac_val.addItems(ALGS)
-        idx = self.hmac_val.findText(Config.HMAC)
+        self.inps['hmac'] = ParamInput.guess_command(
+            'HMAC to use with PBKDF2', QtWidgets.QComboBox(self)
+        )
+        self.inps['hmac'].widget.addItems(ALGS)
+        idx = self.inps['hmac'].widget.findText(Config.HMAC)
         if idx >= 0:
-            self.hmac_val.setCurrentIndex(idx)
+            self.inps['hmac'].widget.setCurrentIndex(idx)
 
-        master_label = QtWidgets.QLabel('Master Password')
-        self.master_val = QtWidgets.QLineEdit(self)
-        self.master_val.setEchoMode(QtWidgets.QLineEdit.Password)
+        self.inps['master'] = ParamInput.guess_command(
+            'Master Password', QtWidgets.QLineEdit(self)
+        )
+        self.inps['master'].widget.setEchoMode(QtWidgets.QLineEdit.Password)
+
+        for param in self.inps.values():
+            self.add_row(param.label, param.widget)
+
+        # domain_label = QtWidgets.QLabel('Domain')
+        # self.domain_val = QtWidgets.QComboBox(self)
+        # self.domain_val.addItems(Config.DOMAINS)
+
+        # num_words_label = QtWidgets.QLabel('Number of Words in Passphrase')
+        # self.num_words_val = self.default_spinbox(Config.LENGTH)
+
+        # wlen_min_label = QtWidgets.QLabel('Minimum Number of Letters per Word')
+        # self.wlen_min_val = self.default_spinbox(Config.WLEN_MIN)
+
+        # wlen_max_label = QtWidgets.QLabel('Maximum Number of Letters per Word')
+        # self.wlen_max_val = self.default_spinbox(Config.WLEN_MAX)
+
+        # num_label = QtWidgets.QLabel('Passphrase iteration')
+        # self.num_val = self.default_spinbox(1)
+
+        # it_min_label = QtWidgets.QLabel('Minimum iterations for PBKDF2')
+        # self.it_min_val = self.default_spinbox(Config.IT_MIN)
+        # self.it_min_val.setGroupSeparatorShown(True)
+
+        # hmac_label = QtWidgets.QLabel('HMAC to use with PBKDF2')
+        # self.hmac_val = QtWidgets.QComboBox(self)
+        # self.hmac_val.addItems(ALGS)
+        # idx = self.hmac_val.findText(Config.HMAC)
+        # if idx >= 0:
+        #     self.hmac_val.setCurrentIndex(idx)
+
+        # master_label = QtWidgets.QLabel('Master Password')
+        # self.master_val = QtWidgets.QLineEdit(self)
+        # self.master_val.setEchoMode(QtWidgets.QLineEdit.Password)
 
         generate_button = QtWidgets.QPushButton('Generate Passphrase')
         generate_button.clicked.connect(self.gen)
 
-        self.add_row(domain_label, self.domain_val)
-        self.add_row(num_words_label, self.num_words_val)
-        self.add_row(wlen_min_label, self.wlen_min_val)
-        self.add_row(wlen_max_label, self.wlen_max_val)
-        self.add_row(num_label, self.num_val)
-        self.add_row(it_min_label, self.it_min_val)
-        self.add_row(hmac_label, self.hmac_val)
-        self.add_row(master_label, self.master_val)
+        # self.add_row(domain_label, self.domain_val)
+        # self.add_row(num_words_label, self.num_words_val)
+        # self.add_row(wlen_min_label, self.wlen_min_val)
+        # self.add_row(wlen_max_label, self.wlen_max_val)
+        # self.add_row(num_label, self.num_val)
+        # self.add_row(it_min_label, self.it_min_val)
+        # self.add_row(hmac_label, self.hmac_val)
+        # self.add_row(master_label, self.master_val)
         self.add_row(generate_button)
 
         self.setLayout(self.layout)
@@ -147,36 +212,40 @@ class GeneratorWidget(QtWidgets.QWidget):
 
     def gather_values(self):
         vals = {}
-        vals['domain'] = self.domain_val.currentText()
-        vals['num_words'] = self.num_words_val.value()
-        vals['wlen_min'] = self.wlen_min_val.value()
-        vals['wlen_max'] = self.wlen_max_val.value()
-        vals['num'] = self.num_val.value()
-        vals['it_min'] = self.it_min_val.value()
-        vals['hmac'] = self.hmac_val.currentText()
-        vals['master'] = self.master_val.text()
+        for elem, param in self.inps.items():
+            vals[elem] = param.val_cmd()
+        print(vals)
+        # vals['domain'] = self.domain_val.currentText()
+        # vals['num_words'] = self.num_words_val.value()
+        # vals['wlen_min'] = self.wlen_min_val.value()
+        # vals['wlen_max'] = self.wlen_max_val.value()
+        # vals['num'] = self.num_val.value()
+        # vals['it_min'] = self.it_min_val.value()
+        # vals['hmac'] = self.hmac_val.currentText()
+        # vals['master'] = self.master_val.text()
         return vals
 
     def gen(self):
         vals = self.gather_values()
         if vals['master']:
-            words = self.read_words(vals['wlen_min'], vals['wlen_max'])
-            passphrase = generate_passphrase(
-                vals['master'],
-                vals['domain'],
-                vals['hmac'],
-                vals['it_min'],
-                vals['num'],
-                words,
-                vals['num_words']
-            )
+            vals['words'] = self.read_words(vals['wlen_min'], vals['wlen_max'])
+            passphrase = generate_passphrase(**vals)
+            # passphrase = generate_passphrase(
+            #     vals['master'],
+            #     vals['domain'],
+            #     vals['hmac'],
+            #     vals['it_min'],
+            #     vals['num'],
+            #     words,
+            #     vals['num_words'],
+            # )
             PassphraseDialog(self, passphrase).exec_()
-        else:
-            QtWidgets.QMessageBox.warning(
-                self,
-                'No Master Password!',
-                'You must provide a master password'
-            )
+        # else:
+        #     QtWidgets.QMessageBox.warning(
+        #         self,
+        #         'No Master Password!',
+        #         'You must provide a master password',
+        #     )
 
 
 def main():
