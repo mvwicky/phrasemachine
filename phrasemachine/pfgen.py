@@ -36,7 +36,7 @@ def word_reg(wmin, wmax):
     return re.compile(r'^[a-z]{' + wmin + ',' + wmax + '}$', re.MULTILINE)
 
 
-def check_args():
+def create_parser():
     """Checks command line arguments, returns argparse namespace object"""
     # The main argument parser object
     parser = argparse.ArgumentParser(prog='passphrase')
@@ -102,6 +102,17 @@ def check_args():
     parser.add_argument(
         '--version', '-v', action='version', version=Config.VER
     )
+    return parser
+
+
+def _get_ns():
+    p = create_parser()
+    ns = vars(p.parse_args([Config.DOMAINS[0]]))
+    return list(ns.keys())
+
+
+def check_args():
+    parser = create_parser()
     args = parser.parse_args()
     if args.length_min > args.length_max:
         # Behavior here is undefined, may cause a regex error at some point
@@ -193,5 +204,6 @@ def cli():
 
 
 if __name__ == '__main__':
-    main()
+    parser = create_parser()
+    # main()
     # cli()
