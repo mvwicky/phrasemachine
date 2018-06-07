@@ -18,6 +18,7 @@ class Config(object):
             'github',
             'wellsfargo',
             'misc',
+            'mlbtv'
         ]
     )
     # Raw list of words
