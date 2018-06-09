@@ -34,6 +34,7 @@ class Config(object):
             'wellsfargo',
             'misc',
             'mlbtv',
+            'linkedin'
         ]
     )
     # Raw list of words
@@ -69,7 +70,7 @@ class DomainSettings(object):
         default=Config.WLEN_MAX,
         validator=[attr.validators.instance_of(int), _gt_zero_validator],
     )
-    n: int = attr.ib(default=1, validator=attr.validators.instance_of(int))
+    num: int = attr.ib(default=1, validator=attr.validators.instance_of(int))
     length: int = attr.ib(
         default=Config.LENGTH,
         validator=[attr.validators.instance_of(int), _gt_zero_validator],
@@ -80,6 +81,10 @@ class DomainSettings(object):
             attr.validators.instance_of(str),
             attr.validators.in_(hashlib.algorithms_available),
         ],
+    )
+    it_min: int = attr.ib(
+        default=Config.IT_MIN,
+        validator=[attr.validators.instance_of(int), _gt_zero_validator]
     )
 
     def __attrs_post_init__(self):

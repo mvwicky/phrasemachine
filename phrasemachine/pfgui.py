@@ -8,7 +8,7 @@ import pyperclip
 from Qt import QtWidgets
 from Qt.QtCore import Qt
 
-from config import Config, SavedSettings
+from config import Config, SavedSettings, DomainSettings
 from pfgen import get_words, word_reg, generate_passphrase
 
 
@@ -65,6 +65,7 @@ Guessable = dict(
 class ParamInput(object):
     label: QtWidgets.QLabel = attr.ib(converter=label_converter)
     widget: QtWidgets.QWidget = attr.ib()
+    settings: Optional[DomainSettings] = attr.ib(default=None)
     val_cmd: Optional[Value_Cmd] = attr.ib(default=None)
 
     @classmethod
@@ -83,6 +84,7 @@ class ParamInput(object):
 
 
 class GeneratorWidget(QtWidgets.QWidget):
+    settings = SavedSettings()
 
     def __init__(self):
         QtWidgets.QWidget.__init__(self)

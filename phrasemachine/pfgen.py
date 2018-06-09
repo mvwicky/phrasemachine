@@ -13,16 +13,9 @@ import random
 import re
 
 import click
+import pyperclip
 
-# If we can import pyperclip, do it
-try:
-    import pyperclip
-except ImportError:
-    clip = False
-else:
-    clip = True
-
-from config import Config
+from config import Config, SavedSettings, DomainSettings
 
 
 def word_reg(wmin, wmax):
@@ -105,6 +98,54 @@ def create_parser():
     return parser
 
 
+@click.command()
+@click.argument(
+    'domain',
+    type=click.Choice(Config.DOMAINS),
+    help='for domain for which a passphrase is generated')
+@click.option(
+    '--num', '-n', type=int, default=1, help='passphrase number to generate'
+)
+@click.option(
+    '--length',
+    '-l',
+    type=int,
+    default=Config.LENGTH,
+    help='number of words in the passphrase'
+)
+@click.option(
+    '--wlen_min',
+    type=int,
+    default=Config.WLEN_MIN,
+    help='the minumum length of a word'
+)
+@click.option(
+    '--wlen_max',
+    type=int,
+    default=Config.WLEN_MAX,
+    help='the minumum length of a word'
+)
+@click.option(
+    '--hmac',
+    type=click.Choice(hashlib.algorithms_available),
+    default=Config.HMAC,
+    help='the hash function to use with PBKDF2'
+)
+@click.option(
+    '--it-min',
+    type=int,
+    default=Config.IT_MIN,
+    help='the minimum iterations for PBKDF2'
+)
+@click.option('--update/--no-update', default=False)
+def cli(domain, num, length, wlen_min, wlen_max, hmac, it_min, update):
+    """Click main function"""
+    settings = SavedSettings()
+    inp_settings = DomainSettings(
+        wlen_min, wlen_max, num, length, hmac, it_min
+    )
+
+
 def _get_ns():
     p = create_parser()
     ns = vars(p.parse_args([Config.DOMAINS[0]]))
@@ -142,11 +183,11 @@ def generate_key(master, domain, hmac, it_min, num):
     domain: the domain which we're generating passwords for
     num: the number of iterations (past max) to run
     """
+    master_hash = hashlib.new(hmac, master).hexdigest()
+    md_bytes = (master_hash + '/' + domain).encode('utf-8')
 
     def pf_bytes(domain, it_min, num):
-        return hashlib.pbkdf2_hmac(
-            hmac, (master + '/' + domain).encode(), Config.SALT, it_min + num
-        )
+        return hashlib.pbkdf2_hmac(hmac, md_bytes, Config.SALT, it_min + num)
 
     return base64.b64encode(pf_bytes(domain, it_min, num)).decode()
 
@@ -171,6 +212,14 @@ def generate_passphrase(master, domain, hmac, it_min, num, words, length):
     return ''.join(random.choices(words, k=length))
 
 
+def gen(settings: DomainSettings):
+    pass
+
+
+def save_settings():
+    pass
+
+
 def main():
     """Main function
 
@@ -178,10 +227,11 @@ def main():
     """
     # Load available words
     args = check_args()
+    dom_set = DomainSettings()
     words = get_words(
         Config.WORDLIST_FILE_NAME, word_reg(args.length_min, args.length_max)
     )
-    print(Config.VER)
+    click.echo(Config.VER)
     # Get the master password from the user in a discrete way
     master = getpass.getpass(prompt='Enter Master Password: ')
     passphrase = generate_passphrase(
@@ -193,17 +243,12 @@ def main():
         words,
         args.length
     )
-    print(passphrase)
-    if clip:
-        # Copy to the clipboard (if possible)
-        pyperclip.copy(passphrase)
-
-
-def cli():
-    """Click main function"""
+    click.echo(passphrase)
+    # Copy to the clipboard
+    pyperclip.copy(passphrase)
 
 
 if __name__ == '__main__':
-    parser = create_parser()
-    # main()
+    # parser = create_parser()
+    main()
     # cli()
