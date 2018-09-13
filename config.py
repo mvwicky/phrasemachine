@@ -1,14 +1,14 @@
 import hashlib
+
+# try:
+#     import ujson as json
+# except ImportError:
+#     import json
+import json
 import os
 import typing
 
-try:
-    import ujson as json
-except ImportError:
-    import json
-
 import attr
-
 
 CFG_LOC = os.path.split(os.path.abspath(__file__))[0]
 
@@ -34,7 +34,8 @@ class Config(object):
             'wellsfargo',
             'misc',
             'mlbtv',
-            'linkedin'
+            'linkedin',
+            'altervin',
         ]
     )
     # Raw list of words
@@ -55,9 +56,9 @@ class Config(object):
     )
 
 
-def _gt_zero_validator(instance, attribute, value):
+def _gt_zero_validator(instance, att, value):
     if value < 1:
-        raise ValueError('"{0}" must be greater than 0'.format(attribute.name))
+        raise ValueError('"{0}" must be greater than 0'.format(att.name))
 
 
 @attr.s(slots=True, auto_attribs=True)
@@ -84,7 +85,7 @@ class DomainSettings(object):
     )
     it_min: int = attr.ib(
         default=Config.IT_MIN,
-        validator=[attr.validators.instance_of(int), _gt_zero_validator]
+        validator=[attr.validators.instance_of(int), _gt_zero_validator],
     )
 
     def __attrs_post_init__(self):
@@ -114,5 +115,9 @@ class SavedSettings(object):
 
     def save(self):
         with open(self.file, 'wt') as f:
-            json.dump({k: attr.asdict(v) for k, v in self.settings.items()}, f)
+            json.dump(
+                {k: attr.asdict(v) for k, v in self.settings.items()},
+                f,
+                indent=4,
+            )
         return os.path.getsize(self.file)
