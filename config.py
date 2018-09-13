@@ -33,9 +33,6 @@ class Config(object):
             'github',
             'wellsfargo',
             'misc',
-            'mlbtv',
-            'linkedin',
-            'altervin',
         ]
     )
     # Raw list of words
